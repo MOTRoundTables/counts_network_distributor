@@ -57,6 +57,32 @@ After running, verify that links of types not intended for centrality calculatio
 - **Compatibility:** Prioritize maintaining compatibility with Java 8 if possible, or clarify if a higher version is required for new features.
 - **Debugging:** The `LinkDistributorLogic` class has a `debugMode` and `debugPrintLimit` which can be useful for tracing execution.
 
+# Statistical Methodology
+This section details the statistical and algorithmic steps involved in the link distribution and sampling process.
+
+## 1. Link Loading and Group Assignment
+- **Loading:** Links are loaded from the input shapefile, extracting attributes such as ID, TYPE, DATA1, and geometry. Two-sided links are identified and combined based on a `combinedId` attribute.
+- **Group Assignment:** Each link is assigned to a predefined group (e.g., Group1, Group2, ..., Other) based on its `TYPE` attribute.
+
+## 2. Edge Betweenness Centrality Calculation
+- **Graph Construction:** A network graph is constructed where link endpoints serve as nodes.
+- **Centrality Computation:** Edge betweenness centrality is calculated using the JGraphT library. This metric quantifies the number of shortest paths between pairs of nodes that pass along a specific edge, indicating its importance in the network.
+- **Normalization:** Centrality scores are normalized to a range between 0 and 1 for consistency and comparability.
+
+## 3. Link Filtering (Optional)
+- **Ramp Filtering:** Optionally, links identified as "ramps" (based on specific DATA1 attribute values, typically 13, 14, or 15) can be filtered out *after* centrality calculation. This ensures that centrality is computed for the full network before removing specific link types from the sample.
+
+## 4. Sample Size Determination
+- **Group-based Sampling:** Sample sizes (`n_g`) for each group are determined based on user-defined RMSE (Root Mean Square Error) values and calculated group weights (`w_g`).
+- **Weight Calculation:** Group weights are inversely proportional to the square of their RMSE values (`w_g = 1 / (RMSE^2)`). Groups with lower RMSE values (implying higher desired accuracy) receive higher weights.
+- **Proportional Allocation:** The total sample size is distributed among groups proportionally to their total number of links (`N_g`) and their calculated weights. The formula used is `n_g = (N_g * w_g) / Total_Weight`, where `Total_Weight` is the sum of all group weights.
+- **Statistics Calculation:** For each group, additional statistics are computed, including average, maximum, and minimum centrality scores.
+
+## 5. Link Selection and Output
+- **Sorting:** Within each group, links are sorted in descending order based on their calculated centrality scores.
+- **Selection:** The top `n_g` links (as determined in the sample size determination step) are selected from each group.
+- **Output Generation:** The selected links are then written to an output shapefile and a CSV file. A summary CSV is also generated, containing metadata about the run and the detailed statistics for each group.
+
 # Output Files
 The application generates several output files in a timestamped subdirectory within the specified output directory (e.g., `output/20250627_103045/`).
 

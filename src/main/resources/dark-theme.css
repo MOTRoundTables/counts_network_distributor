@@ -1,0 +1,125 @@
+/* --- Base Theme Colors --- */
+.root {
+    -fx-base: #3c3f41;
+    -fx-background: #2b2b2b;
+    -fx-control-inner-background: #3c3f41;
+    -fx-control-inner-background-alt: derive(-fx-control-inner-background, 20%);
+    -fx-text-background-color: #a9b7c6;
+    -fx-accent: #26a69a; /* A nice teal accent color */
+    -fx-focus-color: -fx-accent;
+    -fx-faint-focus-color: -fx-accent20;
+}
+
+/* --- General Text --- */
+.label {
+    -fx-text-fill: #a9b7c6;
+    -fx-font-size: 13px;
+}
+
+/* --- Panes & Containers --- */
+.titled-pane {
+    -fx-text-fill: #a9b7c6;
+}
+.titled-pane > .title {
+    -fx-background-color: #3c3f41;
+    -fx-border-color: #2b2b2b;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* --- Input Controls --- */
+.text-field, .text-area, .combo-box, .choice-box {
+    -fx-text-fill: #a9b7c6;
+    -fx-prompt-text-fill: #606366;
+    -fx-background-color: -fx-control-inner-background;
+    -fx-background-insets: 0;
+    -fx-background-radius: 3;
+    -fx-border-color: #555;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+}
+.text-field:focused, .text-area:focused {
+    -fx-border-color: -fx-accent;
+}
+.text-area .content {
+    -fx-background-color: -fx-control-inner-background;
+}
+
+/* --- Buttons --- */
+.button {
+    -fx-text-fill: white;
+    -fx-background-color: #55595c;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-font-weight: bold;
+    -fx-padding: 8 15 8 15;
+}
+.button:hover {
+    -fx-background-color: #6c7174;
+}
+.button:pressed {
+    -fx-background-color: #4a4d4f;
+}
+
+/* --- Special "Run" Button --- */
+.run-button {
+    -fx-background-color: -fx-accent;
+    -fx-font-size: 16px;
+}
+.run-button:hover {
+    -fx-background-color: derive(-fx-accent, 20%);
+}
+.run-button:pressed {
+    -fx-background-color: derive(-fx-accent, -10%);
+}
+
+/* --- Table View --- */
+.table-view {
+    -fx-background-color: -fx-control-inner-background;
+    -fx-border-color: #555;
+}
+.table-view .column-header-background {
+    -fx-background-color: #3c3f41;
+    -fx-border-color: #2b2b2b;
+    -fx-border-width: 0 0 2 0;
+}
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-size: 35;
+}
+.table-view .column-header .label {
+    -fx-text-fill: #a9b7c6;
+    -fx-font-weight: bold;
+}
+.table-view .table-cell {
+    -fx-border-color: transparent;
+    -fx-padding: 4 8 4 8;
+    -fx-text-fill: #a9b7c6;
+}
+.table-view .table-row-cell:odd {
+    -fx-background-color: #3c3f41;
+}
+.table-view .table-row-cell:even {
+    -fx-background-color: #36393b;
+}
+.table-view .table-row-cell:selected {
+    -fx-background-color: -fx-accent;
+}
+
+/* --- Tab Pane --- */
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #2b2b2b;
+}
+.tab-pane .tab {
+    -fx-background-color: #3c3f41;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: #4e5254;
+}
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #a9b7c6;
+}
+.tab-pane:focused .tab:selected .focus-indicator {
+     -fx-border-color: transparent;
+}

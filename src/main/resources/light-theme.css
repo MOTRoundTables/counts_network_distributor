@@ -1,0 +1,137 @@
+/* --- Base Theme Colors --- */
+.root {
+    -fx-base: #E0E0E0; /* A light gray for control backgrounds */
+    -fx-background: #F9F9F9; /* A very light, off-white for the main window */
+    -fx-control-inner-background: #FFFFFF;
+    -fx-text-base-color: #212121; /* Dark text for readability */
+    -fx-accent: #0078D7; /* A professional blue accent */
+    -fx-focus-color: -fx-accent;
+    -fx-faint-focus-color: -fx-accent20;
+}
+
+/* --- General Text --- */
+.label {
+    -fx-text-fill: #333333;
+    -fx-font-size: 13px;
+}
+
+/* --- Panes & Containers --- */
+.titled-pane {
+    -fx-text-fill: #212121;
+}
+.titled-pane > .title {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* --- Input Controls --- */
+.text-field, .text-area, .combo-box, .choice-box {
+    -fx-text-fill: -fx-text-base-color;
+    -fx-prompt-text-fill: #A0A0A0;
+    -fx-background-color: -fx-control-inner-background;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-border-color: #CCCCCC;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 3, 0, 1, 1);
+}
+.text-field:focused, .text-area:focused {
+    -fx-border-color: -fx-accent;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,120,215,0.3), 5, 0, 0, 1);
+}
+.text-area .content {
+    -fx-background-color: -fx-control-inner-background;
+}
+
+/* --- Buttons --- */
+.button {
+    -fx-text-fill: #333333;
+    -fx-background-color: #F0F0F0;
+    -fx-background-radius: 5;
+    -fx-border-color: #CCCCCC;
+    -fx-border-width: 1;
+    -fx-border-radius: 5;
+    -fx-font-weight: bold;
+    -fx-padding: 8 15 8 15;
+}
+.button:hover {
+    -fx-background-color: #E0E0E0;
+}
+.button:pressed {
+    -fx-background-color: #D5D5D5;
+}
+
+/* --- Special "Run" Button --- */
+.run-button {
+    -fx-background-color: -fx-accent;
+    -fx-text-fill: white;
+    -fx-font-size: 16px;
+    -fx-border-color: transparent;
+}
+.run-button:hover {
+    -fx-background-color: derive(-fx-accent, -10%);
+}
+.run-button:pressed {
+    -fx-background-color: derive(-fx-accent, -20%);
+}
+
+/* --- Table View --- */
+.table-view {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0E0E0;
+}
+.table-view .column-header-background {
+    -fx-background-color: #F9F9F9;
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 0 0 2 0;
+}
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-size: 35;
+}
+.table-view .column-header .label {
+    -fx-text-fill: #333333;
+    -fx-font-weight: bold;
+}
+.table-view .table-cell {
+    -fx-border-color: transparent;
+    -fx-padding: 4 8 4 8;
+    -fx-text-fill: #212121;
+}
+.table-view .table-row-cell:odd {
+    -fx-background-color: #FFFFFF;
+}
+.table-view .table-row-cell:even {
+    -fx-background-color: #F5F5F5; /* Subtle striping */
+}
+.table-view .table-row-cell:selected {
+    -fx-background-color: -fx-accent;
+    -fx-text-fill: white;
+}
+.table-view .table-row-cell:selected .text {
+    -fx-fill: white;
+}
+
+
+/* --- Tab Pane --- */
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #F0F0F0;
+}
+.tab-pane .tab {
+    -fx-background-color: #E0E0E0;
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+.tab-pane .tab:selected {
+    -fx-background-color: #FFFFFF; /* Selected tab blends with content */
+    -fx-border-color: #E0E0E0;
+    -fx-border-width: 1 1 0 1;
+}
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #333333;
+}
+.tab-pane:focused .tab:selected .focus-indicator {
+     -fx-border-color: transparent;
+}

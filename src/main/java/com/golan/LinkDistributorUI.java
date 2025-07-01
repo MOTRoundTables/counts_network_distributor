@@ -3,6 +3,11 @@ package com.golan;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.concurrent.Task;
+import javafx.embed.swing.SwingNode;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.PropertyValueFactory;
@@ -10,155 +15,233 @@ import javafx.scene.layout.*;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import javafx.embed.swing.SwingNode;
-
 import org.geotools.data.FileDataStore;
 import org.geotools.data.FileDataStoreFinder;
 import org.geotools.data.simple.SimpleFeatureSource;
+import org.geotools.factory.CommonFactoryFinder;
 import org.geotools.map.FeatureLayer;
 import org.geotools.map.MapContent;
 import org.geotools.renderer.lite.StreamingRenderer;
-import org.geotools.styling.Style;
-import org.geotools.styling.StyleFactory;
-import org.geotools.styling.Stroke;
-import org.geotools.styling.Rule;
-import org.geotools.styling.FeatureTypeStyle;
-import org.geotools.styling.LineSymbolizer;
-import org.geotools.filter.text.ecql.ECQL;
+import org.geotools.styling.*;
+import org.geotools.swing.JMapPane;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
+import org.kordamp.ikonli.javafx.FontIcon;
 import org.opengis.filter.Filter;
 import org.opengis.filter.FilterFactory2;
-import org.geotools.factory.CommonFactoryFinder;
-import java.awt.Color;
-import org.geotools.styling.Style;
-import org.geotools.styling.Style;
-import org.geotools.styling.Style;
-import org.geotools.swing.JMapPane;
 
-import javax.swing.SwingUtilities;
-import java.awt.BorderLayout;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.PrintStream;
-import java.io.FileOutputStream;
-import java.io.OutputStream;
+import javax.swing.*;
+import java.awt.Color;
+import java.io.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class LinkDistributorUI extends Application {
 
-    private TextField inputFileField = new TextField("E:\\git\\catalog\\counts\\counts\\input\\tlvm\\tlvm.shp");
-    private TextField outputDirField = new TextField("E:\\git\\catalog\\counts\\counts\\output\\tlvm\\edge\\gui_test_27_06");
-    private TextArea logArea = new TextArea();
+    // --- UI Components ---
+    private TextField inputFileField;
+    private TextField outputDirField;
+    private TextField epsgField;
+    private CheckBox filterRampsCheckbox;
+    private TextField rampData1ValuesField;
+    private TextField centralityRoadTypesField;
+    private CheckBox combineTwoSidedCheckbox;
+    private TextArea groupRmseArea;
+    private TextArea logArea;
+    private TableView<GroupStats> statsTable;
+    private Button runButton;
+    private ProgressIndicator runProgressIndicator;
+    private BorderPane rootPane;
+    private ToggleButton themeToggle;
+
+    // --- Map Components ---
     private JMapPane mapPane;
     private MapContent mapContent;
-    private TableView<GroupStats> statsTable = new TableView<>();
 
-    private VBox mainLayout;
+    // --- Theme Resources ---
+    private final String lightTheme = getClass().getResource("/light-theme.css").toExternalForm();
+    private final String darkTheme = getClass().getResource("/dark-theme.css").toExternalForm();
 
-    private boolean debugMode = true; // Added for debugging UI
-    private int debugPrintLimit = 100; // Added for debugging UI
+    private final boolean debugMode = true;
 
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("Link Distributor");
 
-        mainLayout = new VBox(10);
-        mainLayout.setPadding(new javafx.geometry.Insets(10));
+        rootPane = new BorderPane();
+        rootPane.setPadding(new Insets(15));
 
-        // Input/Output Selection
-        GridPane fileSelectionGrid = new GridPane();
-        fileSelectionGrid.setHgap(10);
-        fileSelectionGrid.setVgap(5);
+        // --- Build UI Sections ---
+        rootPane.setTop(createHeaderPane(primaryStage));
+        rootPane.setLeft(createParametersPane());
+        rootPane.setCenter(createCenterPane());
+        rootPane.setBottom(createFooterPane());
 
-        fileSelectionGrid.add(new Label("Input Shapefile:"), 0, 0);
-        fileSelectionGrid.add(inputFileField, 1, 0);
-        Button browseInputButton = new Button("Browse...");
-        browseInputButton.setOnAction(e -> browseForInputFile(primaryStage));
-        fileSelectionGrid.add(browseInputButton, 2, 0);
+        // --- Scene and Stage Setup ---
+        Scene scene = new Scene(rootPane); // Create scene without fixed size
 
-        fileSelectionGrid.add(new Label("Output Directory:"), 0, 1);
-        fileSelectionGrid.add(outputDirField, 1, 1);
-        Button browseOutputButton = new Button("Browse...");
-        browseOutputButton.setOnAction(e -> browseForOutputDirectory(primaryStage));
-        fileSelectionGrid.add(browseOutputButton, 2, 1);
+        // Set initial theme to light
+        setTheme(false, scene);
 
-        // Parameters
-        TitledPane paramsPane = new TitledPane("Parameters", createParametersGrid());
+        primaryStage.setScene(scene);
+        primaryStage.setMinWidth(1100);
+        primaryStage.setMinHeight(750);
+        primaryStage.setMaximized(true); // Start maximized for better use of space
+        primaryStage.show();
+    }
+
+    // --- UI Builder Methods ---
+
+    private Node createHeaderPane(Stage stage) {
+        // Main container for the header area
+        BorderPane headerPane = new BorderPane();
+        headerPane.setPadding(new Insets(0, 0, 15, 0));
+
+        // --- Input fields grid (left/center part of header) ---
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+
+        inputFileField = new TextField("E:\\git\\catalog\\counts\\counts\\input\\tlvm\\tlvm.shp");
+        outputDirField = new TextField("E:\\git\\catalog\\counts\\counts\\output\\tlvm\\edge\\gui_test_27_06");
+
+        Button browseInputButton = new Button("Browse");
+        browseInputButton.setGraphic(new FontIcon(FontAwesomeSolid.FOLDER_OPEN));
+        browseInputButton.setOnAction(e -> browseForInputFile(stage));
+
+        Button browseOutputButton = new Button("Browse");
+        browseOutputButton.setGraphic(new FontIcon(FontAwesomeSolid.FOLDER_OPEN));
+        browseOutputButton.setOnAction(e -> browseForOutputDirectory(stage));
+
+        grid.add(new Label("Input Shapefile:"), 0, 0);
+        grid.add(inputFileField, 1, 0);
+        grid.add(browseInputButton, 2, 0);
+        grid.add(new Label("Output Directory:"), 0, 1);
+        grid.add(outputDirField, 1, 1);
+        grid.add(browseOutputButton, 2, 1);
+        GridPane.setHgrow(inputFileField, Priority.ALWAYS);
+        GridPane.setHgrow(outputDirField, Priority.ALWAYS);
+
+        headerPane.setCenter(grid);
+
+        // --- Theme Toggle Button (right part of header) ---
+        themeToggle = new ToggleButton();
+        themeToggle.getStyleClass().add("theme-toggle");
+        themeToggle.setOnAction(e -> setTheme(themeToggle.isSelected(), themeToggle.getScene()));
+
+        StackPane toggleContainer = new StackPane(themeToggle);
+        toggleContainer.setAlignment(Pos.TOP_RIGHT);
+        headerPane.setRight(toggleContainer);
+
+        return headerPane;
+    }
+
+    private Node createParametersPane() {
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.setPadding(new Insets(10));
+
+        epsgField = new TextField("2039");
+        filterRampsCheckbox = new CheckBox("Filter Ramps");
+        filterRampsCheckbox.setSelected(true);
+        rampData1ValuesField = new TextField("13, 14, 15");
+        centralityRoadTypesField = new TextField("1, 2, 3, 4, 5, 6");
+        combineTwoSidedCheckbox = new CheckBox("Combine Two-Sided Links");
+        combineTwoSidedCheckbox.setSelected(true);
+        groupRmseArea = new TextArea("Group1:0.15\nGroup2:0.20\nGroup3:0.25\nGroup4:0.30\nGroup5:0.30\nGroup6:0.40\nOther:0.0");
+        groupRmseArea.setPrefRowCount(6);
+
+        grid.add(new Label("EPSG Code:"), 0, 0);
+        grid.add(epsgField, 1, 0);
+        grid.add(filterRampsCheckbox, 0, 1, 2, 1);
+        grid.add(new Label("Ramp DATA1 Values:"), 0, 2);
+        grid.add(rampData1ValuesField, 1, 2);
+        grid.add(new Label("Centrality Road Types:"), 0, 3);
+        grid.add(centralityRoadTypesField, 1, 3);
+        grid.add(combineTwoSidedCheckbox, 0, 4, 2, 1);
+        grid.add(new Label("Group RMSE Values:"), 0, 5);
+        grid.add(groupRmseArea, 0, 6, 2, 1);
+
+        TitledPane paramsPane = new TitledPane("Parameters", grid);
         paramsPane.setCollapsible(false);
+        paramsPane.setMaxWidth(300);
+        BorderPane.setMargin(paramsPane, new Insets(0, 15, 0, 0));
+        return paramsPane;
+    }
 
-        // Map View
+    private Node createCenterPane() {
         mapContent = new MapContent();
         mapPane = new JMapPane(mapContent);
         mapPane.setRenderer(new StreamingRenderer());
 
         SwingNode swingNode = new SwingNode();
-        createSwingContent(swingNode);
+        SwingUtilities.invokeLater(() -> swingNode.setContent(mapPane));
 
         Tab mapTab = new Tab("Map", swingNode);
         mapTab.setClosable(false);
+        mapTab.setGraphic(new FontIcon(FontAwesomeSolid.MAP_MARKED_ALT));
 
-        // Statistics View
+        statsTable = new TableView<>();
         setupStatsTable();
         Tab statsTab = new Tab("Statistics", statsTable);
         statsTab.setClosable(false);
+        statsTab.setGraphic(new FontIcon(FontAwesomeSolid.CHART_BAR));
 
-        TabPane mapAndStatsTabs = new TabPane();
-        mapAndStatsTabs.getTabs().addAll(mapTab, statsTab);
-        VBox.setVgrow(mapAndStatsTabs, Priority.ALWAYS);
+        TabPane centerTabs = new TabPane(mapTab, statsTab);
+        return centerTabs;
+    }
 
-        // Log View
-        TitledPane logPane = new TitledPane("Log", logArea);
+    private Node createFooterPane() {
+        VBox footerContainer = new VBox(10);
+        footerContainer.setPadding(new Insets(15, 0, 0, 0));
+
+        logArea = new TextArea();
         logArea.setEditable(false);
+        logArea.setWrapText(true);
+        TitledPane logPane = new TitledPane("Log", logArea);
         logPane.setCollapsible(true);
+        logPane.setExpanded(false);
+        VBox.setVgrow(logPane, Priority.ALWAYS);
 
-        // Run Button
-        Button runButton = new Button("Run Analysis");
-        runButton.setOnAction(e -> runAnalysis());
+        runButton = new Button("Run Analysis");
+        runButton.setMaxWidth(Double.MAX_VALUE);
+        runButton.getStyleClass().add("run-button");
+        runButton.setGraphic(new FontIcon(FontAwesomeSolid.PLAY_CIRCLE));
+        runButton.setOnAction(e -> runAnalysisTask());
 
-        mainLayout.getChildren().addAll(fileSelectionGrid, paramsPane, mapAndStatsTabs, logPane, runButton);
+        runProgressIndicator = new ProgressIndicator();
+        runProgressIndicator.setVisible(false);
+        runProgressIndicator.setMaxSize(25, 25);
 
-        Scene scene = new Scene(mainLayout, 800, 600);
-        primaryStage.setScene(scene);
-        primaryStage.show();
+        HBox runButtonContainer = new HBox(10, runProgressIndicator, runButton);
+        runButtonContainer.setAlignment(Pos.CENTER);
+        HBox.setHgrow(runButton, Priority.ALWAYS);
+
+        footerContainer.getChildren().addAll(logPane, runButtonContainer);
+        return footerContainer;
     }
 
-    private void createSwingContent(final SwingNode swingNode) {
-        SwingUtilities.invokeLater(() -> {
-            swingNode.setContent(mapPane);
-        });
+    // --- Theme Management ---
+
+    private void setTheme(boolean isDark, Scene scene) {
+        scene.getStylesheets().clear();
+        if (isDark) {
+            scene.getStylesheets().add(darkTheme);
+            themeToggle.setGraphic(new FontIcon(FontAwesomeSolid.SUN));
+            themeToggle.setSelected(true);
+            SwingUtilities.invokeLater(() -> mapPane.setBackground(new Color(43, 43, 43)));
+        } else {
+            scene.getStylesheets().add(lightTheme);
+            themeToggle.setGraphic(new FontIcon(FontAwesomeSolid.MOON));
+            themeToggle.setSelected(false);
+            SwingUtilities.invokeLater(() -> mapPane.setBackground(new Color(229, 229, 229)));
+        }
     }
 
-    private GridPane createParametersGrid() {
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(5);
-
-        grid.add(new Label("EPSG Code:"), 0, 0);
-        grid.add(new TextField("2039"), 1, 0);
-
-        CheckBox filterRampsCheckbox = new CheckBox("Filter Ramps");
-        filterRampsCheckbox.setSelected(true);
-        grid.add(filterRampsCheckbox, 0, 1);
-
-        grid.add(new Label("Ramp DATA1 Values:"), 0, 2);
-        grid.add(new TextField("13, 14, 15"), 1, 2);
-
-        grid.add(new Label("Centrality Road Types:"), 0, 3);
-        grid.add(new TextField("1, 2, 3, 4, 5, 6"), 1, 3);
-
-        CheckBox combineTwoSidedCheckbox = new CheckBox("Combine Two-Sided Links");
-        combineTwoSidedCheckbox.setSelected(true);
-        grid.add(combineTwoSidedCheckbox, 0, 4);
-
-        grid.add(new Label("Group RMSE Values (group:rmse):"), 0, 5);
-        grid.add(new TextArea("Group1:0.15\nGroup2:0.20\nGroup3:0.25\nGroup4:0.30\nGroup5:0.30\nGroup6:0.40\nOther:0.0"), 1, 5);
-
-        return grid;
-    }
+    // --- Event Handlers and Logic ---
 
     private void browseForInputFile(Stage owner) {
+        // ... (code is unchanged)
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select Input Shapefile");
         fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Shapefiles", "*.shp"));
@@ -169,6 +252,7 @@ public class LinkDistributorUI extends Application {
     }
 
     private void browseForOutputDirectory(Stage owner) {
+        // ... (code is unchanged)
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Select Output Directory");
         File selectedDirectory = directoryChooser.showDialog(owner);
@@ -177,277 +261,265 @@ public class LinkDistributorUI extends Application {
         }
     }
 
-    private void runAnalysis() {
+    private void runAnalysisTask() {
+        // ... (code is unchanged)
         logArea.clear();
-        logArea.appendText("Starting analysis...\n");
+        logArea.appendText("Preparing analysis...\n");
 
-        // Get parameters from UI
         String inputFile = inputFileField.getText();
         String outputDir = outputDirField.getText();
-        GridPane paramsGrid = (GridPane) ((TitledPane) mainLayout.getChildren().get(1)).getContent();
-        String epsgCode = ((TextField) paramsGrid.getChildren().get(1)).getText();
-        boolean filterRamps = ((CheckBox) paramsGrid.getChildren().get(2)).isSelected();
-        String rampData1ValuesStr = ((TextField) paramsGrid.getChildren().get(4)).getText();
-        String centralityRoadTypesStr = ((TextField) paramsGrid.getChildren().get(6)).getText();
-        boolean combineTwoSided = ((CheckBox) paramsGrid.getChildren().get(7)).isSelected();
-        String groupRmseValuesStr = ((TextArea) paramsGrid.getChildren().get(9)).getText();
-
-        // Validate inputs
         if (inputFile.isEmpty() || outputDir.isEmpty()) {
-            logArea.appendText("Error: Input file and output directory must be specified.\n");
+            logArea.appendText("ERROR: Input file and output directory must be specified.\n");
             return;
         }
 
         Set<Integer> rampData1Values = new HashSet<>();
         try {
-            for (String val : rampData1ValuesStr.split(",")) {
+            for (String val : rampData1ValuesField.getText().split(",")) {
                 rampData1Values.add(Integer.parseInt(val.trim()));
             }
         } catch (NumberFormatException e) {
-            logArea.appendText("Error: Invalid Ramp DATA1 values.\n");
+            logArea.appendText("ERROR: Invalid Ramp DATA1 values. Please use comma-separated integers.\n");
             return;
         }
 
-        Set<String> centralityRoadTypes = new HashSet<>();
-        for (String val : centralityRoadTypesStr.split(",")) {
-            centralityRoadTypes.add(val.trim());
-        }
+        Set<String> centralityRoadTypes = new HashSet<>(Arrays.asList(centralityRoadTypesField.getText().split("\\s*,\\s*")));
 
         Map<String, Double> groupRmseMap = new HashMap<>();
         try {
-            for (String line : groupRmseValuesStr.split("\n")) {
+            for (String line : groupRmseArea.getText().split("\n")) {
+                if (line.trim().isEmpty()) continue;
                 String[] parts = line.split(":");
                 groupRmseMap.put(parts[0].trim(), Double.parseDouble(parts[1].trim()));
             }
         } catch (Exception e) {
-            logArea.appendText("Error: Invalid Group RMSE values.\n");
+            logArea.appendText("ERROR: Invalid Group RMSE values. Use format 'Group:Value' on each line.\n");
             return;
         }
 
-        // Create logic instance
         LinkDistributorLogic logic = new LinkDistributorLogic(
-                inputFile,
-                outputDir,
-                epsgCode,
-                filterRamps,
-                rampData1Values,
-                centralityRoadTypes,
-                combineTwoSided,
-                groupRmseMap,
-                true, // debugMode
-                100 // debugPrintLimit
+                inputFile, outputDir, epsgField.getText(),
+                filterRampsCheckbox.isSelected(), rampData1Values,
+                centralityRoadTypes, combineTwoSidedCheckbox.isSelected(),
+                groupRmseMap, debugMode, 100
         );
 
-        // Redirect output
-        TextAreaOutputStream taos = new TextAreaOutputStream(logArea);
-        PrintStream ps = new PrintStream(taos, true);
-        logic.setPrintStream(ps);
+        Task<Void> analysisTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                updateMessage("Analysis in progress...");
+                String runDateTime = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+                String fullOutputFolder = outputDir + File.separator + runDateTime;
+                new File(fullOutputFolder).mkdirs();
+                File logFile = new File(fullOutputFolder, "application.log");
 
-        // Generate the timestamped output folder path
-        String runDateTime = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String fullOutputFolder = outputDir + File.separator + runDateTime;
-
-        // Ensure output folder exists for the log file
-        File outputDirFile = new File(fullOutputFolder);
-        if (!outputDirFile.exists()) {
-            outputDirFile.mkdirs(); // Create directories if they don't exist
-        }
-
-        File logFile = new File(fullOutputFolder, "application.log");
-
-        // Run in background
-        new Thread(() -> {
-            try (FileOutputStream fos = new FileOutputStream(logFile)) {
-                // Create a TeeOutputStream to write to both TextArea and file
-                OutputStream teeOutputStream = new LinkDistributorLogic.TeeOutputStream(
-                    new TextAreaOutputStream(logArea), // Existing stream for UI log
-                    fos // New stream for file log
-                );
-                PrintStream combinedPs = new PrintStream(teeOutputStream, true); // true for auto-flush
-
-                // Set the combined PrintStream for the logic
-                logic.setPrintStream(combinedPs);
-
-                logic.run(); // This is where the main logic runs and prints
-
-                Platform.runLater(() -> {
-                    logArea.appendText("Analysis finished successfully.\n");
-                    displayResults(outputDir); // Pass original outputDir to find latest subfolder
-                });
-            } catch (Exception e) {
-                Platform.runLater(() -> {
-                    logArea.appendText("An error occurred during analysis:\n");
-                    e.printStackTrace(new PrintStream(new TextAreaOutputStream(logArea))); // Print to logArea
-                });
+                try (FileOutputStream fos = new FileOutputStream(logFile)) {
+                    OutputStream teeStream = new LinkDistributorLogic.TeeOutputStream(new TextAreaOutputStream(logArea), fos);
+                    logic.setPrintStream(new PrintStream(teeStream, true));
+                    logic.run();
+                }
+                updateMessage("Analysis finished. Loading results...");
+                Platform.runLater(() -> displayResults(outputDir));
+                return null;
             }
-        }).start();
+        };
+
+        analysisTask.setOnSucceeded(e -> {
+            logArea.appendText("\nAnalysis task completed successfully.\n");
+            setUIState(false);
+        });
+
+        analysisTask.setOnFailed(e -> {
+            logArea.appendText("\n--- ANALYSIS FAILED ---\n");
+            Throwable ex = analysisTask.getException();
+            ex.printStackTrace(new PrintStream(new TextAreaOutputStream(logArea)));
+            setUIState(false);
+        });
+
+        setUIState(true);
+        new Thread(analysisTask).start();
+    }
+
+    private void setUIState(boolean isRunning) {
+        runProgressIndicator.setVisible(isRunning);
+        runButton.setDisable(isRunning);
+        rootPane.getLeft().setDisable(isRunning);
+        // Disable only the grid part of the header, not the theme toggle
+        ((BorderPane) rootPane.getTop()).getCenter().setDisable(isRunning);
     }
 
     private void displayResults(String outputDir) {
-        if (debugMode) {
-            logArea.appendText("displayResults called with outputDir: " + outputDir + "\n");
-        }
+        log("Attempting to display results from: " + outputDir);
         try {
-            // Find the latest output directory
             File dir = new File(outputDir);
-            File[] subDirs = dir.listFiles(File::isDirectory);
-            if (subDirs == null || subDirs.length == 0) {
-                if (debugMode) {
-                    logArea.appendText("No subdirectories found in outputDir: " + outputDir + "\n");
-                }
+            Optional<File> latestDirOpt = Arrays.stream(dir.listFiles(File::isDirectory))
+                    .max(Comparator.comparingLong(File::lastModified));
+
+            if (latestDirOpt.isEmpty()) {
+                log("No output subdirectories found in: " + outputDir);
                 return;
             }
-            Arrays.sort(subDirs, Comparator.comparingLong(File::lastModified).reversed());
-            File latestDir = subDirs[0];
-            if (debugMode) {
-                logArea.appendText("Latest output directory: " + latestDir.getAbsolutePath() + "\n");
-            }
+            File latestDir = latestDirOpt.get();
+            log("Latest output directory: " + latestDir.getAbsolutePath());
 
-            // Find the output shapefile
-            File[] shpFiles = latestDir.listFiles((d, name) -> name.endsWith("_shapefile.shp"));
-            if (shpFiles != null && shpFiles.length > 0) {
-                File shapefile = shpFiles[0];
-                if (debugMode) {
-                    logArea.appendText("Found shapefile: " + shapefile.getAbsolutePath() + "\n");
-                }
+            Optional<File> shpFileOpt = Arrays.stream(latestDir.listFiles((d, name) -> name.endsWith("_shapefile.shp"))).findFirst();
+            if (shpFileOpt.isPresent()) {
+                File shapefile = shpFileOpt.get();
+                log("Found shapefile: " + shapefile.getAbsolutePath());
                 FileDataStore store = FileDataStoreFinder.getDataStore(shapefile);
-                SimpleFeatureSource featureSource = store.getFeatureSource(store.getTypeNames()[0]);
+                SimpleFeatureSource featureSource = store.getFeatureSource();
 
-                Style style = createTypeBasedStyle(featureSource);
+                // Choose map style based on current theme
+                Style style = themeToggle.isSelected() ? createDarkMapStyle() : createLightMapStyle();
+
                 FeatureLayer layer = new FeatureLayer(featureSource, style);
 
                 SwingUtilities.invokeLater(() -> {
-                    SwingUtilities.invokeLater(() -> {
                     mapContent.layers().clear();
                     mapContent.addLayer(layer);
-                    mapPane.repaint();
                     mapPane.setDisplayArea(mapContent.getMaxBounds());
-                    if (debugMode) {
-                        logArea.appendText("Map updated with shapefile.\n");
-                    }
-                });
+                    log("Map updated with new layer.");
                 });
             } else {
-                if (debugMode) {
-                    logArea.appendText("No shapefile found in latest output directory.\n");
-                }
+                log("No '*_shapefile.shp' found in the latest output directory.");
             }
 
-            // Find and parse the summary CSV
-            File[] csvFiles = latestDir.listFiles((d, name) -> name.endsWith("summary.csv"));
-            if (csvFiles != null && csvFiles.length > 0) {
-                File summaryCsvFile = csvFiles[0];
-                if (debugMode) {
-                    logArea.appendText("Found summary CSV: " + summaryCsvFile.getAbsolutePath() + "\n");
-                }
+            Optional<File> csvFileOpt = Arrays.stream(latestDir.listFiles((d, name) -> name.endsWith("summary.csv"))).findFirst();
+            if (csvFileOpt.isPresent()) {
+                File summaryCsvFile = csvFileOpt.get();
+                log("Found summary CSV: " + summaryCsvFile.getAbsolutePath());
                 List<GroupStats> stats = parseSummaryCsv(summaryCsvFile);
-                if (debugMode) {
-                    logArea.appendText("Parsed " + stats.size() + " stats entries from summary CSV.\n");
-                }
+                log("Parsed " + stats.size() + " stats entries.");
                 Platform.runLater(() -> {
                     statsTable.setItems(FXCollections.observableArrayList(stats));
-                    if (debugMode) {
-                        logArea.appendText("Stats table updated.\n");
-                    }
+                    log("Statistics table updated.");
                 });
             } else {
-                if (debugMode) {
-                    logArea.appendText("No summary.csv found in latest output directory.\n");
-                }
+                log("No 'summary.csv' found in the latest output directory.");
             }
+
         } catch (Exception e) {
-            logArea.appendText("Error displaying results: " + e.getMessage() + "\n");
+            log("Error displaying results: " + e.getMessage());
             e.printStackTrace(new PrintStream(new TextAreaOutputStream(logArea)));
         }
     }
 
     private void setupStatsTable() {
+        // ... (code is unchanged)
+        statsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         TableColumn<GroupStats, String> groupCol = new TableColumn<>("Group");
         groupCol.setCellValueFactory(new PropertyValueFactory<>("group"));
-
         TableColumn<GroupStats, Long> nCol = new TableColumn<>("N_g");
         nCol.setCellValueFactory(new PropertyValueFactory<>("N_g"));
-
         TableColumn<GroupStats, Double> rmseCol = new TableColumn<>("RMSE");
         rmseCol.setCellValueFactory(new PropertyValueFactory<>("rmse"));
-
         TableColumn<GroupStats, Double> wCol = new TableColumn<>("w_g");
         wCol.setCellValueFactory(new PropertyValueFactory<>("w_g"));
-
         TableColumn<GroupStats, Integer> ngCol = new TableColumn<>("n_g");
         ngCol.setCellValueFactory(new PropertyValueFactory<>("ng"));
-
         TableColumn<GroupStats, Double> avgCenCol = new TableColumn<>("Avg Centrality");
         avgCenCol.setCellValueFactory(new PropertyValueFactory<>("avgCentrality"));
-
         TableColumn<GroupStats, Double> maxCenCol = new TableColumn<>("Max Centrality");
         maxCenCol.setCellValueFactory(new PropertyValueFactory<>("maxCentrality"));
-
         TableColumn<GroupStats, Double> minCenCol = new TableColumn<>("Min Centrality");
         minCenCol.setCellValueFactory(new PropertyValueFactory<>("minCentrality"));
-
-        statsTable.getColumns().addAll(groupCol, nCol, rmseCol, wCol, ngCol, avgCenCol, maxCenCol, minCenCol);
+        statsTable.getColumns().setAll(groupCol, nCol, rmseCol, wCol, ngCol, avgCenCol, maxCenCol, minCenCol);
     }
 
     private List<GroupStats> parseSummaryCsv(File csvFile) throws IOException {
-        if (debugMode) {
-            logArea.appendText("parseSummaryCsv called for file: " + csvFile.getAbsolutePath() + "\n");
-        }
+        // ... (code is unchanged)
         List<GroupStats> statsList = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(csvFile))) {
             String line;
-            // Skip header lines until the actual data header is found
+            boolean headerFound = false;
             while ((line = br.readLine()) != null) {
-                if (debugMode) {
-                    logArea.appendText("Reading line: " + line + "\n");
+                if (line.trim().startsWith("Group,N_g")) {
+                    headerFound = true;
+                    continue;
                 }
-                if (line.startsWith("Group,N_g")) {
-                    if (debugMode) {
-                        logArea.appendText("Found data header: " + line + "\n");
-                    }
-                    break; // Found the header, exit loop
-                }
-            }
-            if (line == null) { // No data header found
-                if (debugMode) {
-                    logArea.appendText("No data header found in summary CSV.\n");
-                }
-                return statsList;
-            }
+                if (!headerFound) continue;
 
-            while ((line = br.readLine()) != null) {
                 String[] values = line.split(",");
                 if (values.length == 8) {
                     try {
                         statsList.add(new GroupStats(
-                            values[0],
-                            Long.parseLong(values[1]),
-                            Double.parseDouble(values[2]),
-                            Double.parseDouble(values[3]),
-                            Integer.parseInt(values[4]),
-                            Double.parseDouble(values[5]),
-                            Double.parseDouble(values[6]),
+                            values[0], Long.parseLong(values[1]), Double.parseDouble(values[2]),
+                            Double.parseDouble(values[3]), Integer.parseInt(values[4]),
+                            Double.parseDouble(values[5]), Double.parseDouble(values[6]),
                             Double.parseDouble(values[7])
                         ));
-                        if (debugMode) {
-                            logArea.appendText("Parsed stats: " + values[0] + ", " + values[1] + ", ...\n");
-                        }
                     } catch (NumberFormatException e) {
-                        if (debugMode) {
-                            logArea.appendText("Error parsing number in line: " + line + ": " + e.getMessage() + "\n");
-                        }
+                        log("Skipping malformed number in CSV line: " + line);
                     }
                 } else {
-                    if (debugMode) {
-                        logArea.appendText("Skipping malformed line in summary CSV (expected 8 values, got " + values.length + "): " + line + "\n");
-                    }
+                    log("Skipping malformed CSV line (expected 8 values): " + line);
                 }
             }
         }
         return statsList;
     }
 
+    // --- Map Styling Methods ---
+
+    private Style createLightMapStyle() {
+        StyleFactory sf = CommonFactoryFinder.getStyleFactory();
+        FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+        Map<String, Color> typeColors = new HashMap<>();
+        typeColors.put("1", Color.decode("#0033A0")); // Strong Blue
+        typeColors.put("2", Color.decode("#D50032")); // Strong Red
+        typeColors.put("3", Color.decode("#008751")); // Strong Green
+        typeColors.put("4", Color.decode("#F39C12")); // Orange
+        typeColors.put("5", Color.decode("#8E44AD")); // Purple
+        typeColors.put("6", Color.decode("#009999")); // Teal
+        return createStyleFromColors(sf, ff, typeColors);
+    }
+
+    private Style createDarkMapStyle() {
+        StyleFactory sf = CommonFactoryFinder.getStyleFactory();
+        FilterFactory2 ff = CommonFactoryFinder.getFilterFactory2();
+        Map<String, Color> typeColors = new HashMap<>();
+        typeColors.put("1", Color.decode("#17becf")); // Bright Cyan
+        typeColors.put("2", Color.decode("#e377c2")); // Bright Pink
+        typeColors.put("3", Color.decode("#d62728")); // Bright Red
+        typeColors.put("4", Color.decode("#ff7f0e")); // Bright Orange
+        typeColors.put("5", Color.decode("#bcbd22")); // Lime Green
+        typeColors.put("6", Color.decode("#9467bd")); // Bright Purple
+        return createStyleFromColors(sf, ff, typeColors);
+    }
+
+    private Style createStyleFromColors(StyleFactory sf, FilterFactory2 ff, Map<String, Color> typeColors) {
+        List<Rule> rules = new ArrayList<>();
+        for (Map.Entry<String, Color> entry : typeColors.entrySet()) {
+            Filter filter = ff.equals(ff.property("TYPE"), ff.literal(entry.getKey()));
+            LineSymbolizer symbolizer = sf.createLineSymbolizer(sf.createStroke(ff.literal(entry.getValue()), ff.literal(2.5)), null);
+            Rule rule = sf.createRule();
+            rule.setFilter(filter);
+            rule.symbolizers().add(symbolizer);
+            rules.add(rule);
+        }
+
+        Color defaultColor = themeToggle.isSelected() ? Color.LIGHT_GRAY : Color.DARK_GRAY;
+        LineSymbolizer defaultSymbolizer = sf.createLineSymbolizer(sf.createStroke(ff.literal(defaultColor), ff.literal(1)), null);
+        Rule defaultRule = sf.createRule();
+        defaultRule.setFilter(Filter.INCLUDE);
+        defaultRule.symbolizers().add(defaultSymbolizer);
+        rules.add(defaultRule);
+
+        FeatureTypeStyle fts = sf.createFeatureTypeStyle(rules.toArray(new Rule[0]));
+        Style style = sf.createStyle();
+        style.featureTypeStyles().add(fts);
+        return style;
+    }
+
+    private void log(String message) {
+        if (debugMode) {
+            Platform.runLater(() -> logArea.appendText(message + "\n"));
+        }
+    }
+
+    // --- Data Holder and Main Method ---
     public static class GroupStats {
+        // ... (This class remains unchanged)
         private final String group;
         private final long N_g;
         private final double rmse;
@@ -472,57 +544,10 @@ public class LinkDistributorUI extends Application {
         public long getN_g() { return N_g; }
         public double getRmse() { return rmse; }
         public double getW_g() { return w_g; }
-        public int getNg() { return n_g; } // Corrected getter name
+        public int getNg() { return n_g; }
         public double getAvgCentrality() { return avgCentrality; }
         public double getMaxCentrality() { return maxCentrality; }
         public double getMinCentrality() { return minCentrality; }
-    }
-
-    private Style createTypeBasedStyle(SimpleFeatureSource featureSource) {
-        StyleFactory styleFactory = CommonFactoryFinder.getStyleFactory();
-        FilterFactory2 filterFactory = CommonFactoryFinder.getFilterFactory2();
-
-        // Define colors for different link types
-        Map<String, Color> typeColors = new HashMap<>();
-        typeColors.put("1", Color.BLUE);
-        typeColors.put("2", Color.GREEN);
-        typeColors.put("3", Color.RED);
-        typeColors.put("4", Color.ORANGE);
-        typeColors.put("5", Color.MAGENTA);
-        typeColors.put("6", Color.CYAN);
-        typeColors.put("Other", Color.GRAY); // For types not explicitly listed
-
-        List<Rule> rules = new ArrayList<>();
-        for (Map.Entry<String, Color> entry : typeColors.entrySet()) {
-            String type = entry.getKey();
-            Color color = entry.getValue();
-
-            // Create a filter for the current type
-            Filter filter = filterFactory.equal(filterFactory.property("TYPE"), filterFactory.literal(type));
-
-            // Create a line symbolizer with the specified color
-            LineSymbolizer lineSymbolizer = styleFactory.createLineSymbolizer();
-            lineSymbolizer.setStroke(styleFactory.createStroke(filterFactory.literal(color), filterFactory.literal(2))); // 2 pixels wide
-
-            // Create a rule and add the symbolizer
-            Rule rule = styleFactory.createRule();
-            rule.setFilter(filter);
-            rule.symbolizers().add(lineSymbolizer);
-            rules.add(rule);
-        }
-
-        // Create a default rule for any other features not caught by the above rules
-        LineSymbolizer defaultLineSymbolizer = styleFactory.createLineSymbolizer();
-        defaultLineSymbolizer.setStroke(styleFactory.createStroke(filterFactory.literal(Color.BLACK), filterFactory.literal(1)));
-        Rule defaultRule = styleFactory.createRule();
-        defaultRule.symbolizers().add(defaultLineSymbolizer);
-        rules.add(defaultRule);
-
-        FeatureTypeStyle featureTypeStyle = styleFactory.createFeatureTypeStyle(rules.toArray(new Rule[0]));
-        Style style = styleFactory.createStyle();
-        style.featureTypeStyles().add(featureTypeStyle);
-
-        return style;
     }
 
     public static void main(String[] args) {
