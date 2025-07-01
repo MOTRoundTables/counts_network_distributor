@@ -27,3 +27,6 @@ buildNumber.properties
 # OS
 .DS_Store
 Thumbs.db
+
+.gemini
+GEMINI.md
