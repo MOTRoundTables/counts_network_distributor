@@ -23,6 +23,7 @@ import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
 import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.geotools.util.factory.Hints;
 import org.opengis.referencing.crs.CoordinateReferenceSystem;
 import org.opengis.referencing.operation.MathTransform;
 import org.opengis.referencing.operation.TransformException;
@@ -749,7 +750,7 @@ public class LinkDistributorLogic {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName("LinkSchema");
         try {
-            builder.setCRS(CRS.decode("EPSG:" + epsgCode));
+            builder.setCRS(CRS.parseWKT("PROJCS[\"Israel_TM_Grid\",GEOGCS[\"GCS_Israel\",DATUM[\"D_Israel\",SPHEROID[\"GRS_1980\",6378137.0,298.257222101]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",219529.584],PARAMETER[\"False_Northing\",626907.39],PARAMETER[\"Central_Meridian\",35.2045169444444],PARAMETER[\"Scale_Factor\",1.0000067],PARAMETER[\"Latitude_Of_Origin\",31.7343936111111],UNIT[\"Meter\",1.0]]"));
         } catch (FactoryException e) {
             System.err.println("Error decoding CRS (" + epsgCode + "): " + e.getMessage() + " -- falling back to WGS84.");
             builder.setCRS(DefaultGeographicCRS.WGS84);
@@ -768,7 +769,7 @@ public class LinkDistributorLogic {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName("RepresentativeLinkSchema");
         try {
-            builder.setCRS(CRS.decode("EPSG:" + epsgCode));
+            builder.setCRS(CRS.parseWKT("PROJCS[\"Israel_TM_Grid\",GEOGCS[\"GCS_Israel\",DATUM[\"D_Israel\",SPHEROID[\"GRS_1980\",6378137.0,298.257222101]],PRIMEM[\"Greenwich\",0.0],UNIT[\"Degree\",0.0174532925199433]],PROJECTION[\"Transverse_Mercator\"],PARAMETER[\"False_Easting\",219529.584],PARAMETER[\"False_Northing\",626907.39],PARAMETER[\"Central_Meridian\",35.2045169444444],PARAMETER[\"Scale_Factor\",1.0000067],PARAMETER[\"Latitude_Of_Origin\",31.7343936111111],UNIT[\"Meter\",1.0]]"));
         } catch (FactoryException e) {
             System.err.println("Error decoding CRS (" + epsgCode + "): " + e.getMessage() + " -- falling back to WGS84.");
             builder.setCRS(DefaultGeographicCRS.WGS84);
