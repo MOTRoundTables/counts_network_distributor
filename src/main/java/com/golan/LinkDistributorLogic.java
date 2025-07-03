@@ -1,4 +1,3 @@
-
 package com.golan;
 
 import java.io.File;
@@ -21,8 +20,12 @@ import org.geotools.data.shapefile.ShapefileDataStoreFactory;
 import org.geotools.data.simple.SimpleFeatureCollection;
 import org.geotools.data.simple.SimpleFeatureIterator;
 import org.geotools.feature.simple.SimpleFeatureTypeBuilder;
+import org.geotools.geometry.jts.JTS;
 import org.geotools.referencing.CRS;
 import org.geotools.referencing.crs.DefaultGeographicCRS;
+import org.opengis.referencing.crs.CoordinateReferenceSystem;
+import org.opengis.referencing.operation.MathTransform;
+import org.opengis.referencing.operation.TransformException;
 
 // JGraphT imports
 import org.jgrapht.Graph;
@@ -96,11 +99,12 @@ public class LinkDistributorLogic {
     private int debugPrintLimit;
 
     private PrintStream printStream;
+    private CoordinateReferenceSystem sourceCRS; // To hold the CRS of the input shapefile
 
     public LinkDistributorLogic(String inputShapeFile, String baseOutputFolder, String epsgCode, boolean filterRamps, Set<Integer> rampData1Values, Set<String> centralityRoadTypes, boolean combineTwoSided, Map<String, Double> groupRmseMap, boolean debugMode, int debugPrintLimit) {
         this.inputShapeFile = inputShapeFile;
         this.baseOutputFolder = baseOutputFolder;
-        this.epsgCode = epsgCode;
+        this.epsgCode = "EPSG:" + epsgCode;
         this.filterRamps = filterRamps;
         this.rampData1Values = rampData1Values;
         this.centralityRoadTypes = centralityRoadTypes;
@@ -283,7 +287,7 @@ public class LinkDistributorLogic {
             System.out.println("Centrality shapefile written successfully.");
         }
 
-        System.out.println("\n=== LinkDistributorEdge Processing Completed ===");
+        System.out.println("\n=== LinkDistributorEdge Processing Completed ====");
         System.out.println("Output Shapefile: " + shpOutputPath);
         System.out.println("Output CSV:       " + csvOutputPath);
         System.out.println("Summary CSV:      " + summaryCsvPath);
@@ -294,15 +298,15 @@ public class LinkDistributorLogic {
     private void writeParameters(String outputFolder, String runDateTime) {
         File paramFile = new File(outputFolder, "parameters.txt");
         try (FileWriter fw = new FileWriter(paramFile)) {
-            fw.write("Run Date/Time: " + runDateTime + "\\n");
-            fw.write("EPSG Code: " + epsgCode + "\\n");
-            fw.write("Filter Ramps: " + filterRamps + "\\n");
-            fw.write("Ramp DATA1 Values: " + rampData1Values + "\\n");
-            fw.write("Centrality Road Types: " + centralityRoadTypes + "\\n");
-            fw.write("Combine Two-Sided: " + combineTwoSided + "\\n");
-            fw.write("Group RMSE Map: " + groupRmseMap + "\\n");
-            fw.write("Debug Mode: " + debugMode + "\\n");
-            fw.write("Debug Print Limit: " + debugPrintLimit + "\\n");
+            fw.write("Run Date/Time: " + runDateTime + "\n");
+            fw.write("EPSG Code: " + epsgCode + "\n");
+            fw.write("Filter Ramps: " + filterRamps + "\n");
+            fw.write("Ramp DATA1 Values: " + rampData1Values + "\n");
+            fw.write("Centrality Road Types: " + centralityRoadTypes + "\n");
+            fw.write("Combine Two-Sided: " + combineTwoSided + "\n");
+            fw.write("Group RMSE Map: " + groupRmseMap + "\n");
+            fw.write("Debug Mode: " + debugMode + "\n");
+            fw.write("Debug Print Limit: " + debugPrintLimit + "\n");
         } catch (IOException e) {
             System.err.println("Error writing parameters: " + e.getMessage());
         }
@@ -319,6 +323,7 @@ public class LinkDistributorLogic {
                 throw new IllegalStateException("Error: Could not load shapefile: " + shapefile);
             }
             String typeName = ds.getTypeNames()[0];
+            this.sourceCRS = ds.getSchema(typeName).getCoordinateReferenceSystem(); // Capture the source CRS
             SimpleFeatureCollection fc = ds.getFeatureSource(typeName).getFeatures();
             try (SimpleFeatureIterator it = fc.features()) {
                 while (it.hasNext()) {
@@ -614,30 +619,60 @@ public class LinkDistributorLogic {
                 throw new IOException("Error: No type name created in new shapefile.");
             }
             String typeName = names[0];
-            try (FeatureWriter<SimpleFeatureType, SimpleFeature> writer = sds.getFeatureWriterAppend(typeName, null)) {
-                int writtenCount = 0;
-                int totalLinks = links.size();
-                for (Link link : links) {
-                    SimpleFeature ft = writer.next();
-                    ft.setAttribute("the_geom", link.geometry);
-                    ft.setAttribute("ID", link.id);
-                    ft.setAttribute("TYPE", link.type);
-                    ft.setAttribute("GROUP", link.group);
-                    ft.setAttribute("CENTRALITY", link.centrality);
-                    ft.setAttribute("RMSE", link.rmse);
-                    if (isRepresentative) {
-                        ft.setAttribute("OTHERSIDE", link.otherSideId);
-                    }
-                    writer.write();
-                    if (debugMode && writtenCount < debugPrintLimit) {
-                        System.out.println("Written Link ID: " + link.id + " to shapefile.");
-                        writtenCount++;
-                    } else if (debugMode && writtenCount == debugPrintLimit) {
-                        System.out.println("... (" + (totalLinks - debugPrintLimit) + " more links written)");
-                        writtenCount++;
+
+            try {
+                // --- CRS Transformation Setup ---
+                CoordinateReferenceSystem targetCRS = CRS.decode(epsgCode);
+                if (debugMode) {
+                    System.out.println("Debug: Source CRS: " + (sourceCRS != null ? sourceCRS.toWKT() : "NULL"));
+                    System.out.println("Debug: Target CRS: " + (targetCRS != null ? targetCRS.toWKT() : "NULL"));
+                }
+                MathTransform transform = CRS.findMathTransform(sourceCRS, targetCRS, true);
+                if (debugMode) {
+                    System.out.println("Debug: MathTransform created: " + (transform != null ? transform.toWKT() : "NULL"));
+                }
+
+                try (FeatureWriter<SimpleFeatureType, SimpleFeature> writer = sds.getFeatureWriterAppend(typeName, null)) {
+                    int writtenCount = 0;
+                    int totalLinks = links.size();
+                    for (Link link : links) {
+                        SimpleFeature ft = writer.next();
+
+                        // --- Reproject Geometry ---
+                        Geometry transformedGeom = null;
+                        if (link.geometry != null && transform != null) {
+                            transformedGeom = JTS.transform(link.geometry, transform);
+                        } else if (debugMode) {
+                            System.out.println("Debug: Skipping geometry transformation for Link ID: " + link.id + " (geometry or transform is null)");
+                        }
+                        ft.setAttribute("the_geom", transformedGeom);
+
+                        ft.setAttribute("ID", link.id);
+                        ft.setAttribute("TYPE", link.type);
+                        ft.setAttribute("GROUP", link.group);
+                        ft.setAttribute("CENTRALITY", link.centrality);
+                        ft.setAttribute("RMSE", link.rmse);
+                        if (isRepresentative) {
+                            ft.setAttribute("OTHERSIDE", link.otherSideId);
+                        }
+                        writer.write();
+                        if (debugMode) {
+                            System.out.println("Debug: Wrote Link ID: " + link.id + " to shapefile.");
+                        }
+                        if (debugMode && writtenCount < debugPrintLimit) {
+                            System.out.println("Written Link ID: " + link.id + " to shapefile.");
+                            writtenCount++;
+                        } else if (debugMode && writtenCount == debugPrintLimit) {
+                            System.out.println("... (" + (totalLinks - debugPrintLimit) + " more links written)");
+                            writtenCount++;
+                        }
                     }
                 }
+            } catch (Exception e) {
+                System.err.println("Error writing features: " + e.getMessage());
+                e.printStackTrace();
             }
+
             sds.dispose();
             if (debugMode) {
                 System.out.println("Shapefile written successfully to " + shpOutputPath);
@@ -679,11 +714,11 @@ public class LinkDistributorLogic {
             fw.write("EPSG Code:," + epsgCode + "\n\n");
 
             // Write overall network information
-            fw.write("Total Links in Network,First-Stage Sampleed Links\\n");
-            fw.write(totalLinks + "," + sampledLinks + "\\n\\n");
+            fw.write("Total Links in Network,First-Stage Sampleed Links\n");
+            fw.write(totalLinks + "," + sampledLinks + "\n\n");
 
             // Write per-group summary statistics
-            fw.write("Group,N_g,RMSE,w_g,n_g,AvgCentrality,MaxCentrality,MinCentrality\\n");
+            fw.write("Group,N_g,RMSE,w_g,n_g,AvgCentrality,MaxCentrality,MinCentrality\n");
             List<String> orderedGroups = new ArrayList<>(sampleInfoMap.keySet());
             Collections.sort(orderedGroups); // Sort groups for consistent output
 
@@ -714,7 +749,7 @@ public class LinkDistributorLogic {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName("LinkSchema");
         try {
-            builder.setCRS(CRS.decode(epsgCode));
+            builder.setCRS(CRS.decode("EPSG:" + epsgCode));
         } catch (FactoryException e) {
             System.err.println("Error decoding CRS (" + epsgCode + "): " + e.getMessage() + " -- falling back to WGS84.");
             builder.setCRS(DefaultGeographicCRS.WGS84);
@@ -733,7 +768,7 @@ public class LinkDistributorLogic {
         SimpleFeatureTypeBuilder builder = new SimpleFeatureTypeBuilder();
         builder.setName("RepresentativeLinkSchema");
         try {
-            builder.setCRS(CRS.decode(epsgCode));
+            builder.setCRS(CRS.decode("EPSG:" + epsgCode));
         } catch (FactoryException e) {
             System.err.println("Error decoding CRS (" + epsgCode + "): " + e.getMessage() + " -- falling back to WGS84.");
             builder.setCRS(DefaultGeographicCRS.WGS84);
@@ -805,31 +840,61 @@ public class LinkDistributorLogic {
                 System.out.println("Debug: Type name obtained: " + names[0]);
             }
             String typeName = names[0];
-            try (FeatureWriter<SimpleFeatureType, SimpleFeature> writer = sds.getFeatureWriterAppend(typeName, null)) {
-                int writtenCount = 0;
-                for (List<Link> groupLinks : selLinks.values()) {
-                    for (Link link : groupLinks) {
-                        SimpleFeature ft = writer.next();
-                        ft.setAttribute("the_geom", link.geometry);
-                        ft.setAttribute("ID", link.id);
-                        ft.setAttribute("TYPE", link.type);
-                        ft.setAttribute("GROUP", link.group);
-                        ft.setAttribute("CENTRALITY", link.centrality);
-                        ft.setAttribute("RMSE", link.rmse);
-                        if (isRepresentative) {
-                            ft.setAttribute("OTHERSIDE", link.otherSideId);
-                        }
-                        writer.write();
-                        if (debugMode && writtenCount < debugPrintLimit) {
-                            System.out.println("Written Link ID: " + link.id + " to shapefile.");
-                            writtenCount++;
-                        } else if (debugMode && writtenCount == debugPrintLimit) {
-                            System.out.println("... (" + (totalLinks - debugPrintLimit) + " more links written)");
-                            writtenCount++;
+
+            try {
+                // --- CRS Transformation Setup ---
+                CoordinateReferenceSystem targetCRS = CRS.decode(epsgCode);
+                if (debugMode) {
+                    System.out.println("Debug: Source CRS: " + (sourceCRS != null ? sourceCRS.toWKT() : "NULL"));
+                    System.out.println("Debug: Target CRS: " + (targetCRS != null ? targetCRS.toWKT() : "NULL"));
+                }
+                MathTransform transform = CRS.findMathTransform(sourceCRS, targetCRS, true);
+                if (debugMode) {
+                    System.out.println("Debug: MathTransform created: " + (transform != null ? transform.toWKT() : "NULL"));
+                }
+
+                try (FeatureWriter<SimpleFeatureType, SimpleFeature> writer = sds.getFeatureWriterAppend(typeName, null)) {
+                    int writtenCount = 0;
+                    for (List<Link> groupLinks : selLinks.values()) {
+                        for (Link link : groupLinks) {
+                            SimpleFeature ft = writer.next();
+
+                            // --- Reproject Geometry ---
+                            Geometry transformedGeom = null;
+                            if (link.geometry != null && transform != null) {
+                                transformedGeom = JTS.transform(link.geometry, transform);
+                            } else if (debugMode) {
+                                System.out.println("Debug: Skipping geometry transformation for Link ID: " + link.id + " (geometry or transform is null)");
+                            }
+                            ft.setAttribute("the_geom", transformedGeom);
+
+                            ft.setAttribute("ID", link.id);
+                            ft.setAttribute("TYPE", link.type);
+                            ft.setAttribute("GROUP", link.group);
+                            ft.setAttribute("CENTRALITY", link.centrality);
+                            ft.setAttribute("RMSE", link.rmse);
+                            if (isRepresentative) {
+                                ft.setAttribute("OTHERSIDE", link.otherSideId);
+                            }
+                            writer.write();
+                            if (debugMode) {
+                                System.out.println("Debug: Wrote Link ID: " + link.id + " to shapefile.");
+                            }
+                            if (debugMode && writtenCount < debugPrintLimit) {
+                                System.out.println("Written Link ID: " + link.id + " to shapefile.");
+                                writtenCount++;
+                            } else if (debugMode && writtenCount == debugPrintLimit) {
+                                System.out.println("... (" + (totalLinks - debugPrintLimit) + " more links written)");
+                                writtenCount++;
+                            }
                         }
                     }
                 }
+            } catch (Exception e) {
+                System.err.println("Error writing features: " + e.getMessage());
+                e.printStackTrace();
             }
+
             sds.dispose();
             if (debugMode) {
                 System.out.println("Shapefile written successfully to " + shpOutputPath);
