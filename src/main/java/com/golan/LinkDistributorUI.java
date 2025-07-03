@@ -170,6 +170,7 @@ public class LinkDistributorUI extends Application {
     }
 
     private Node createCenterPane() {
+        // --- Top part: Map and Statistics Tabs ---
         mapContent = new MapContent();
         mapPane = new JMapPane(mapContent);
         mapPane.setRenderer(new StreamingRenderer());
@@ -187,22 +188,27 @@ public class LinkDistributorUI extends Application {
         statsTab.setClosable(false);
         statsTab.setGraphic(new FontIcon(FontAwesomeSolid.CHART_BAR));
 
-        TabPane centerTabs = new TabPane(mapTab, statsTab);
-        return centerTabs;
-    }
+        TabPane mainTabs = new TabPane(mapTab, statsTab);
 
-    private Node createFooterPane() {
-        VBox footerContainer = new VBox(10);
-        footerContainer.setPadding(new Insets(15, 0, 0, 0));
-
+        // --- Bottom part: Log View ---
         logArea = new TextArea();
         logArea.setEditable(false);
         logArea.setWrapText(true);
-        TitledPane logPane = new TitledPane("Log", logArea);
-        logPane.setCollapsible(true);
-        logPane.setExpanded(false);
-        VBox.setVgrow(logPane, Priority.ALWAYS);
 
+        // The ScrollPane wraps the logArea to handle overflow
+        ScrollPane logScrollPane = new ScrollPane(logArea);
+        logScrollPane.setFitToWidth(true);
+
+        // --- SplitPane to combine them ---
+        SplitPane centerSplitPane = new SplitPane();
+        centerSplitPane.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        centerSplitPane.getItems().addAll(mainTabs, logScrollPane);
+        centerSplitPane.setDividerPositions(0.8); // Give 80% of space to the map/stats initially
+
+        return centerSplitPane;
+    }
+
+    private Node createFooterPane() {
         runButton = new Button("Run Analysis");
         runButton.setMaxWidth(Double.MAX_VALUE);
         runButton.getStyleClass().add("run-button");
@@ -216,9 +222,9 @@ public class LinkDistributorUI extends Application {
         HBox runButtonContainer = new HBox(10, runProgressIndicator, runButton);
         runButtonContainer.setAlignment(Pos.CENTER);
         HBox.setHgrow(runButton, Priority.ALWAYS);
+        runButtonContainer.setPadding(new Insets(15, 0, 0, 0)); // Keep padding consistent
 
-        footerContainer.getChildren().addAll(logPane, runButtonContainer);
-        return footerContainer;
+        return runButtonContainer;
     }
 
     // --- Theme Management ---

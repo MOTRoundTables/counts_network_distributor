@@ -30,3 +30,6 @@ Thumbs.db
 
 GEMINI.md
 .gemini/
+
+# YoYo AI version control directory
+.yoyo/
