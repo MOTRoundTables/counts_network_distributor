@@ -12,7 +12,7 @@
 /* --- General Text --- */
 .label {
     -fx-text-fill: #333333;
-    -fx-font-size: 13px;
+    -fx-font-size: 12px; /* Reduced font size */
 }
 
 /* --- Panes & Containers --- */
@@ -36,6 +36,7 @@
     -fx-border-width: 1;
     -fx-border-radius: 4;
     -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 3, 0, 1, 1);
+    -fx-font-size: 12px; /* Reduced font size */
 }
 .text-field:focused, .text-area:focused {
     -fx-border-color: -fx-accent;
@@ -54,7 +55,8 @@
     -fx-border-width: 1;
     -fx-border-radius: 5;
     -fx-font-weight: bold;
-    -fx-padding: 8 15 8 15;
+    -fx-padding: 6 12 6 12; /* Reduced padding */
+    -fx-font-size: 12px; /* Reduced font size */
 }
 .button:hover {
     -fx-background-color: #E0E0E0;
@@ -67,7 +69,7 @@
 .run-button {
     -fx-background-color: -fx-accent;
     -fx-text-fill: white;
-    -fx-font-size: 16px;
+    -fx-font-size: 14px; /* Reduced font size */
     -fx-border-color: transparent;
 }
 .run-button:hover {
@@ -89,16 +91,18 @@
 }
 .table-view .column-header, .table-view .filler {
     -fx-background-color: transparent;
-    -fx-size: 35;
+    -fx-size: 30; /* Reduced header size */
 }
 .table-view .column-header .label {
     -fx-text-fill: #333333;
     -fx-font-weight: bold;
+    -fx-font-size: 12px; /* Reduced font size */
 }
 .table-view .table-cell {
     -fx-border-color: transparent;
-    -fx-padding: 4 8 4 8;
+    -fx-padding: 3 6 3 6; /* Reduced padding */
     -fx-text-fill: #212121;
+    -fx-font-size: 12px; /* Reduced font size */
 }
 .table-view .table-row-cell:odd {
     -fx-background-color: #FFFFFF;
@@ -131,6 +135,7 @@
 }
 .tab-pane .tab .tab-label {
     -fx-text-fill: #333333;
+    -fx-font-size: 12px; /* Reduced font size */
 }
 .tab-pane:focused .tab:selected .focus-indicator {
      -fx-border-color: transparent;
